@@ -17,7 +17,6 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
     2. Fallback to Hugging Face (slower, but good backup).
     """
     
-    # 1. Try Groq first if key exists
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key and groq_key != "your_groq_api_key_here":
         text = await _transcribe_groq(audio_bytes, groq_key)
@@ -25,7 +24,6 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
             return text
         print("[Voice] ⚠️ Groq failed, falling back to Hugging Face...")
 
-    # 2. Fallback to Hugging Face
     hf_token = os.getenv("HUGGINGFACE_TOKEN")
     if hf_token and hf_token != "your_huggingface_token_here":
         return await _transcribe_hf(audio_bytes, hf_token)
@@ -38,7 +36,6 @@ async def _transcribe_groq(audio_bytes: bytes, api_key: str) -> str:
     """Use Groq's high-speed Whisper model."""
     try:
         print(f"[Voice] ⚡ Transcribing via Groq API...")
-        # Groq requires a file-like upload, so we use a tempfile
         tmp = tempfile.NamedTemporaryFile(suffix=".ogg", delete=False)
         tmp.write(audio_bytes)
         tmp.close()
@@ -48,7 +45,7 @@ async def _transcribe_groq(audio_bytes: bytes, api_key: str) -> str:
                 res = await client.post(
                     "https://api.groq.com/openai/v1/audio/transcriptions",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    data={"model": "whisper-large-v3-turbo", "language": "ar"},  # Hint it's Arabic/Darija
+                    data={"model": "whisper-large-v3-turbo", "language": "ar"},
                     files={"file": ("audio.ogg", f, "audio/ogg")},
                 )
             
@@ -71,7 +68,7 @@ async def _transcribe_hf(audio_bytes: bytes, token: str) -> str:
     """Use Hugging Face Inference API."""
     url = f"https://api-inference.huggingface.co/models/{HF_WHISPER_MODEL}"
     async with httpx.AsyncClient(timeout=60.0) as client:
-        for attempt in range(2):  # Only 2 attempts to save time
+        for attempt in range(2):
             try:
                 print(f"[Voice] 🐢 Transcribing via Hugging Face (attempt {attempt + 1}/2)...")
                 res = await client.post(
@@ -93,7 +90,6 @@ async def _transcribe_hf(audio_bytes: bytes, token: str) -> str:
                     print(f"[Voice] ❌ HF API error ({res.status_code}): {res.text[:200]}")
                     return ""
 
-                # Try parsing response
                 try:
                     data = res.json()
                 except Exception:
@@ -115,7 +111,6 @@ async def _transcribe_hf(audio_bytes: bytes, token: str) -> str:
     return ""
 
 
-# Arabic TTS voices
 ARABIC_VOICE = "ar-MA-MounaNeural"
 FRENCH_VOICE = "fr-MA-JamalNeural"
 

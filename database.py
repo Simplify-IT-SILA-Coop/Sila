@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./dev.db")
-# If DATABASE_URL starts with sqlite:///, replace it with sqlite+aiosqlite:///
 if DATABASE_URL.startswith("sqlite:///"):
     DATABASE_URL = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///")
 

@@ -30,6 +30,8 @@ class Driver(Base):
     fullName: Mapped[str] = mapped_column(String)
     vehicleInfo: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     isActive: Mapped[bool] = mapped_column(Boolean, default=True)
+    earnings: Mapped[float] = mapped_column(Float, default=0.0)
+    rating: Mapped[float] = mapped_column(Float, default=5.0)
     createdAt: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     packages: Mapped[List["Package"]] = relationship(back_populates="driver")
@@ -60,9 +62,10 @@ class Booking(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     packageId: Mapped[int] = mapped_column(Integer, ForeignKey("packages.id"), unique=True)
-    type: Mapped[str] = mapped_column(String) # SOLO or GROUP
+    type: Mapped[str] = mapped_column(String)
     estimatedCost: Mapped[float] = mapped_column(Float)
     finalCost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String, default="PENDING")
     createdAt: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -75,6 +78,7 @@ class GroupBatch(Base):
     routeSlug: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="FORMING")
     discountPercent: Mapped[float] = mapped_column(Float, default=20.0)
+    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     approvedById: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     createdAt: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

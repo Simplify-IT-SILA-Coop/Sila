@@ -22,9 +22,9 @@ class ParsedDelivery(BaseModel):
     pickup_address: Optional[str] = None
     delivery_address: Optional[str] = None
     preferred_date: Optional[str] = None
-    intent: Literal['delivery_request', 'status_inquiry', 'general_greeting', 'solo_confirmation', 'group_confirmation', 'unknown'] = 'unknown'
+    deadline: Optional[str] = None
+    intent: Literal['delivery_request', 'status_inquiry', 'general_greeting', 'solo_confirmation', 'group_confirmation', 'price_inquiry', 'cancel_order', 'unknown'] = 'unknown'
 
-# Reliable free models on OpenRouter (Active as of March 2025)
 OR_AI_MODELS = [
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
@@ -32,17 +32,15 @@ OR_AI_MODELS = [
     "openrouter/auto", 
 ]
 
-# Specialized Darija/Arabic models on Hugging Face
 HF_LLM_MODELS = [
-    "MBZUAI-Paris/Atlas-Chat-9B", # Specialized for Moroccan Darija
-    "Qwen/Qwen2.5-72B-Instruct",  # Best for general Arabic logic
+    "MBZUAI-Paris/Atlas-Chat-9B",
+    "Qwen/Qwen2.5-72B-Instruct",
 ]
 
 async def call_ai(messages: List[dict], response_format: Optional[str] = None) -> Optional[str]:
     """Multi-Provider Dispatcher: Groq (Fast) -> Hugging Face (Deep) -> OpenRouter (Fallback)."""
     if not messages: return None
 
-    # Fixes 'coli' vs 'column' hallucination
     vocab_injection = (
         "\n\nVOCABULARY DICTIONARY (DARIJA/ARABIZI):\n"
         "- 'coli'/'colis' = Package/Parcel (NOT a building column)\n"
@@ -58,7 +56,6 @@ async def call_ai(messages: List[dict], response_format: Optional[str] = None) -
         current_messages[0]["content"] += vocab_injection
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # 🟢 1. Try GROQ (Primary - Fastest & Reliable)
         if GROQ_API_KEY:
             for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]:
                 try:
@@ -81,7 +78,6 @@ async def call_ai(messages: List[dict], response_format: Optional[str] = None) -
                 except Exception as e:
                     print(f"[AI-Groq] ❌ Error: {e}")
 
-        # 🟡 2. Try Hugging Face (Secondary - Specialized Darija)
         if HUGGINGFACE_TOKEN:
             hf_prompt = ""
             for m in current_messages:
@@ -107,7 +103,6 @@ async def call_ai(messages: List[dict], response_format: Optional[str] = None) -
                 except Exception as e:
                     print(f"[AI-HF] ❌ Error: {e}")
 
-        # 🟠 3. Try OpenRouter (Final Fallback - Multiple Free Models)
         if OPENROUTER_API_KEY:
             for model in OR_AI_MODELS:
                 try:
@@ -131,13 +126,32 @@ async def call_openrouter(messages: List[dict], response_format: Optional[str] =
     return await call_ai(messages, response_format)
 
 async def parse_user_message(user_text: str) -> ParsedDelivery:
-    system_prompt = """You are a Moroccan Delivery Data Extractor. 
-The user speaks Moroccan Darija (using Arabic script or Arabizi like 'bghit', 'wa7ed'), French, or Arabic.
-Extract the delivery details into JSON.
-JSON Keys: language_detected, normalized_text (Fusha Arabic), weight_kg, fragile (bool), city_from, city_to, pickup_address, delivery_address, preferred_date, intent.
-Values should be null if not found.
-Intent can be: delivery_request, status_inquiry, general_greeting, unknown.
-CRITICAL: 'coli' means 'package/parcel', NOT 'column'."""
+    system_prompt = """You are a JSON extraction bot. Extract delivery details and respond ONLY with valid JSON.
+
+Format:
+{
+  "language_detected": "darija|arabic|arabizi|french|english|unknown",
+  "normalized_text": "text in Fusha Arabic",
+  "weight_kg": number or null,
+  "fragile": true/false or null,
+  "city_from": "city name" or null,
+  "city_to": "city name" or null,
+  "pickup_address": "address" or null,
+  "delivery_address": "address" or null,
+  "preferred_date": "date" or null,
+  "deadline": "deadline description" or null,
+  "intent": "delivery_request|status_inquiry|general_greeting|solo_confirmation|group_confirmation|price_inquiry|cancel_order|unknown"
+}
+
+Intents:
+- 'Bghit nsift coli/hamla' → delivery_request
+- 'Fin wsla amana/coli?' → status_inquiry
+- 'Ch7al taman?' → price_inquiry
+- '7bess/Sfgh' → cancel_order
+- Greetings → general_greeting
+- 'Ah/Khyar' after prices → solo_confirmation or group_confirmation
+
+CRITICAL: Respond ONLY with JSON, no markdown, no explanations."""
     
     try:
         content = await call_ai([
@@ -146,23 +160,43 @@ CRITICAL: 'coli' means 'package/parcel', NOT 'column'."""
         ], response_format="json_object")
 
         if content:
-            return ParsedDelivery.model_validate_json(content)
+            content = content.strip()
+            if content.startswith('```json'):
+                content = content[7:]
+            if content.startswith('```'):
+                content = content[3:]
+            if content.endswith('```'):
+                content = content[:-3]
+            content = content.strip()
+            
+            try:
+                return ParsedDelivery.model_validate_json(content)
+            except Exception as json_error:
+                return ParsedDelivery(
+                    language_detected='arabic',
+                    normalized_text=user_text,
+                    intent='unknown'
+                )
+                
     except Exception as e:
-        print(f"[AI] Parse error: {e}")
+        return ParsedDelivery(
+            language_detected='arabic',
+            normalized_text=user_text,
+            intent='unknown'
+        )
 
-    return ParsedDelivery(normalized_text=user_text)
-
-async def generate_response(user_text: str, context: str, system_action: str, language: str = "darija") -> str:
-    system_prompt = f"""You are 'Antigravity Delivery Bot', a helpful and professional Moroccan delivery assistant 📦🇲🇦.
-You understand Moroccan Darija perfectly (including Arabizi/numbers like 'wa7ed', 'khmsa').
-Tone: Friendly, efficient, Moroccan-centric. Use emojis.
+async def generate_response(user_text: str, context: str, system_action: str, language: str = "arabic") -> str:
+    system_prompt = f"""You are 'Sila Delivery Bot', a helpful and professional delivery assistant .
+You understand Arabic dialects but respond ONLY in Modern Standard Arabic (Fusha).
+Tone: Professional, helpful, clear. Use emojis.
 Rules:
-1. Reply ONLY in {language} (Moroccan Darija).
-2. If the user mentions a city, acknowledge it.
-3. Keep the reply short (1-3 sentences max).
-4. Context of the current order: {context}
-5. Your next task: {system_action}
-CRITICAL: 'coli' means 'package/parcel', NOT 'column'."""
+1. Reply ONLY in Modern Standard Arabic (Fusha) using Arabic script.
+2. If the user mentions a city, acknowledge it warmly (e.g. 'أهلاً بكم في تلك المدينة!').
+3. Keep the reply short (1-3 sentences max). Use professional emojis .
+4. Context: {context}
+5. Next Action: {system_action}
+6. If the user is asking for status, explain exactly where their parcel is.
+CRITICAL: 'طرد' means package/parcel. 'سعر' = Price. 'شكراً' = Thank you."""
 
     try:
         content = await call_ai([
@@ -174,20 +208,19 @@ CRITICAL: 'coli' means 'package/parcel', NOT 'column'."""
     except Exception as e:
         print(f"[AI] Response error: {e}")
 
-    # Instant hardcoded fallback if ALL AI models fail
     fallback_responses = {
-        "Introduce": "مرحبا بيك فـ Antigravity Delivery! 📦🇲🇦 شنو سميتك الكاملة؟",
-        "name": "أهلا! من أنهي مدينة بغيتي تسيفط؟ 🏙️",
-        "city": "وكيلي! لأنهي مدينة بغيتي توصل الطرد؟ 📍",
-        "pickup": "فين بالضبط نجيو نديو الطرد؟ عطينا العنوان 🏠",
-        "delivery": "وفين نوصلوه؟ عطينا عنوان التوصيل 📬",
-        "description": "وصف لينا الطرد: شحال فالوزن؟ واش فراجيل؟ 📦",
-        "options": "اختار: 1️⃣ سولو (سريع) ولا 2️⃣ غروب (اقتصادي)",
-        "thank": "شكرا ليك! 🙏 غادي نتواصلو معاك قريبا إن شاء الله ✅",
+        "Introduce": "مرحباً بك في خدمة سيلا للتوصيل! 📦 ما هو اسمك الكامل؟",
+        "name": "أهلاً بك! من أي مدينة ترغب في إرسال الطرد؟ 🏙️",
+        "city": "ممتاز! إلى أي مدينة تريد توصيل الطرد؟ 📍",
+        "pickup": "ما هو عنوان الاستلام بالضبط؟ 🏠",
+        "delivery": "وما هو عنوان التوصيل؟ 📬",
+        "description": "يرجى وصف الطرد: ما هو الوزن وهل هو هش؟ 📦",
+        "options": "يرجى الاختيار: 1️⃣ فردي (سريع) أم 2️⃣ جماعي (اقتصادي)",
+        "thank": "شكراً لك! 🙏 سنتواصل معك قريباً إن شاء الله ✅",
     }
 
     for key, response in fallback_responses.items():
         if key.lower() in system_action.lower():
             return response
 
-    return "مرحبا! كيفاش نقدر نعاونك اليوم؟ 📦🇲🇦"
+    return "مرحباً! كيف يمكنني مساعدتك اليوم؟ 📦"

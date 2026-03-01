@@ -1,7 +1,6 @@
 import math
 from typing import Literal, TypedDict
 
-# Demo distances for Moroccan Cities
 FALLBACK_DISTANCES = {
     'casablanca-rabat': 87,
     'rabat-casablanca': 87,

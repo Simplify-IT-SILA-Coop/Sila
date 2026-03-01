@@ -58,10 +58,7 @@ async def download_media(media_id: str) -> bytes:
     if not token:
         raise Exception("WHATSAPP_TOKEN missing")
 
-    # Do NOT use follow_redirects=True, because if Meta redirects to a CDN, 
-    # sending the Authorization header will cause a 400 error.
     async with httpx.AsyncClient(timeout=60.0) as client:
-        # Step 1: Get the media URL
         print(f"[WhatsApp] 📥 Getting media URL for ID: {media_id}")
         res = await client.get(
             f"{WHATSAPP_API}/{media_id}",
@@ -78,7 +75,6 @@ async def download_media(media_id: str) -> bytes:
 
         print(f"[WhatsApp] 📥 Downloading media ({mime_type}) from {media_url[:80]}...")
 
-        # Step 2: Download the actual file
         res2 = await client.get(
             media_url,
             headers={"Authorization": f"Bearer {token}"},
