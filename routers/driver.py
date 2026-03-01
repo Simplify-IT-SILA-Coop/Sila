@@ -35,6 +35,12 @@ async def create_driver(data: DriverCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(new_driver)
     return new_driver
 
+@router.get("")
+async def list_drivers(db: AsyncSession = Depends(get_db)):
+    stmt = select(Driver)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
 @router.post("/login")
 async def driver_login(data: DriverLogin, db: AsyncSession = Depends(get_db)):
     stmt = select(Driver).where(Driver.phone == data.phone)
