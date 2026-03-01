@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from database import engine, Base
 from webhooks.whatsapp import router as whatsapp_router
+from routers.driver import router as driver_router
 
 load_dotenv()
 
@@ -43,6 +44,7 @@ async def health():
     return {"status": "ok", "service": "python-backend"}
 
 app.include_router(whatsapp_router)
+app.include_router(driver_router)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 3002))

@@ -22,11 +22,24 @@ class User(Base):
     packages: Mapped[List["Package"]] = relationship(back_populates="user")
     logs: Mapped[List["AuditLog"]] = relationship(back_populates="actor")
 
+class Driver(Base):
+    __tablename__ = "drivers"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    phone: Mapped[str] = mapped_column(String, unique=True, index=True)
+    fullName: Mapped[str] = mapped_column(String)
+    vehicleInfo: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    isActive: Mapped[bool] = mapped_column(Boolean, default=True)
+    createdAt: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    packages: Mapped[List["Package"]] = relationship(back_populates="driver")
+
 class Package(Base):
     __tablename__ = "packages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     userId: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    driverId: Mapped[Optional[str]] = mapped_column(String, ForeignKey("drivers.id"), nullable=True)
     groupId: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("group_batches.id"), nullable=True)
     weightKg: Mapped[float] = mapped_column(Float, default=2.0)
     fragile: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -38,6 +51,7 @@ class Package(Base):
     createdAt: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="packages")
+    driver: Mapped[Optional["Driver"]] = relationship(back_populates="packages")
     group: Mapped[Optional["GroupBatch"]] = relationship(back_populates="packages")
     booking: Mapped[Optional["Booking"]] = relationship(back_populates="package")
 
