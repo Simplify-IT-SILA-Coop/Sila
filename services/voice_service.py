@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-HF_WHISPER_MODEL = "openai/whisper-large-v3"
+HF_WHISPER_MODEL = "anaszil/whisper-large-v3-turbo-darija"
 
 
 async def transcribe_audio(audio_bytes: bytes) -> str:

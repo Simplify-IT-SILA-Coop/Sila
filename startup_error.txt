@@ -1,0 +1,65 @@
+C:\Users\Megba\Desktop\project V0\backend-python\main.py:21: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Will watch for changes in these directories: ['C:\\Users\\Megba\\Desktop\\project V0\\backend-python']
+INFO:     Uvicorn running on http://0.0.0.0:3002 (Press CTRL+C to quit)
+INFO:     Started reloader process [9128] using WatchFiles
+INFO:     Started server process [12916]
+INFO:     Waiting for application startup.
+
+=== ENVIRONMENT CHECK ===
+ERROR:    Traceback (most recent call last):
+  File "C:\Users\Megba\Desktop\project V0\backend-python\venv\Lib\site-packages\starlette\routing.py", line 694, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Python314\Lib\contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Megba\Desktop\project V0\backend-python\venv\Lib\site-packages\fastapi\routing.py", line 204, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\Megba\Desktop\project V0\backend-python\venv\Lib\site-packages\fastapi\routing.py", line 229, in __aenter__
+    await self._router._startup()
+  File "C:\Users\Megba\Desktop\project V0\backend-python\venv\Lib\site-packages\fastapi\routing.py", line 4730, in _startup
+    await handler()
+  File "C:\Users\Megba\Desktop\project V0\backend-python\main.py", line 32, in startup
+    print(f"{v}: {'\u2713 SET' if val else '\u2717 MISSING'}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 6: character maps to <undefined>
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+ INFO:     Started server process [17080]
+INFO:     Waiting for application startup.
+
+=== ENVIRONMENT CHECK ===
+PORT: OK
+WHATSAPP_TOKEN: OK
+WHATSAPP_PHONE_ID: OK
+WHATSAPP_VERIFY_TOKEN: OK
+WHATSAPP_APP_SECRET: OK
+OPENROUTER_API_KEY: OK
+DATABASE_URL: OK
+=========================
+
+2026-03-01 02:44:10,172 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-01 02:44:10,172 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2026-03-01 02:44:10,172 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-01 02:44:10,179 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("packages")
+2026-03-01 02:44:10,179 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-01 02:44:10,181 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("bookings")
+2026-03-01 02:44:10,181 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-01 02:44:10,182 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("group_batches")
+2026-03-01 02:44:10,183 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-01 02:44:10,184 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("audit_logs")
+2026-03-01 02:44:10,184 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-01 02:44:10,186 INFO sqlalchemy.engine.Engine COMMIT
+Database tables created.
+INFO:     Application startup complete.

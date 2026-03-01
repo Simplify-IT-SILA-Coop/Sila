@@ -29,7 +29,8 @@ async def startup():
     ]
     for v in vars_to_check:
         val = os.getenv(v)
-        print(f"{v}: {'✓ SET' if val else '✗ MISSING'}")
+        status = "OK" if val else "MISSING"
+        print(f"{v}: {status}")
     print("=========================\n")
 
     # Create tables

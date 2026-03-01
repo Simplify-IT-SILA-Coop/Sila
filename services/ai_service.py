@@ -8,6 +8,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
+
+# Specialized Darija/Arabic models on Hugging Face
+HF_LLM_MODELS = [
+    "MBZUAI-Paris/Atlas-Chat-9B", # Specialized for Moroccan Darija
+    "Qwen/Qwen2.5-72B-Instruct",  # Best for general Arabic logic
+]
 
 class ParsedDelivery(BaseModel):
     language_detected: Literal['darija', 'arabic', 'arabizi', 'french', 'english', 'unknown'] = 'unknown'
@@ -21,35 +28,104 @@ class ParsedDelivery(BaseModel):
     preferred_date: Optional[str] = None
     intent: Literal['delivery_request', 'status_inquiry', 'general_greeting', 'solo_confirmation', 'group_confirmation', 'unknown'] = 'unknown'
 
-# Fastest free models first – these respond in < 3 seconds
-FAST_FREE_MODELS = [
-    'google/gemma-2-9b-it:free',
-    'meta-llama/llama-3.1-8b-instruct:free',
-    'mistralai/mistral-7b-instruct:free',
+# The absolute best free models on OpenRouter for reasoning and languages (70B+ parameters)
+BEST_FREE_MODELS = [
+    'meta-llama/llama-3.3-70b-instruct:free',    # Currently the best free model overall
+    'mistralai/mistral-small-24b-instruct-2501:free', # Excellent multilingual support
+    'qwen/qwen-2.5-72b-instruct:free',            # Strong Arabic knowledge
+    'google/gemma-2-27b-it:free',                # Good backup
+    'meta-llama/llama-3.1-8b-instruct:free',     # Reliable fallback
 ]
 
-async def call_openrouter(messages: List[dict], response_format: Optional[dict] = None) -> Optional[str]:
+async def call_huggingface(messages: List[dict], response_format: Optional[str] = None) -> Optional[str]:
+    """Primary engine: Highly specialized Darija/Arabic models on Hugging Face."""
+    if not HUGGINGFACE_TOKEN:
+        return None
+
+    # We format messages for HF Chat Template style if needed, but simple join is safer for serverless
+    prompt = ""
+    for m in messages:
+        role = "Assistant" if m["role"] == "assistant" else "User" if m["role"] == "user" else "System"
+        prompt += f"<|im_start|>{role}\n{m['content']}<|im_end|>\n"
+    prompt += "<|im_start|>Assistant\n"
+
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        for model in HF_LLM_MODELS:
+            try:
+                print(f"[AI-HF] Trying specialized model: {model}")
+                payload = {
+                    "inputs": prompt,
+                    "parameters": {
+                        "max_new_tokens": 300,
+                        "temperature": 0.5,
+                        "top_p": 0.9,
+                        "return_full_text": False
+                    }
+                }
+                
+                res = await client.post(
+                    f"https://api-inference.huggingface.co/models/{model}",
+                    headers={"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"},
+                    json=payload
+                )
+
+                if res.status_code == 200:
+                    data = res.json()
+                    content = ""
+                    if isinstance(data, list) and len(data) > 0:
+                        content = data[0].get("generated_text", "")
+                    elif isinstance(data, dict):
+                        content = data.get("generated_text", "")
+                    
+                    if content:
+                        # Clean up any potential leftover im_end tags
+                        content = content.split("<|im_end|>")[0].strip()
+                        print(f"[AI-HF] ✅ Got response from {model}")
+                        return content
+                
+                if res.status_code == 503:
+                    print(f"[AI-HF] ⏳ Model {model} is loading...")
+
+                print(f"[AI-HF] ⚠️ Model {model} status {res.status_code}")
+            except Exception as e:
+                print(f"[AI-HF] ❌ Model {model} error: {e}")
+
+    return None
+
+async def call_ai(messages: List[dict], response_format: Optional[str] = None) -> Optional[str]:
+    """Try Hugging Face first (specialized), then OpenRouter (general fallback)."""
+    # 1. Try Hugging Face specialized models
+    content = await call_huggingface(messages, response_format)
+    if content:
+        return content
+
+    # 2. Try OpenRouter high-quality models
+    return await call_openrouter(messages, response_format)
+
+async def call_openrouter(messages: List[dict], response_format: Optional[str] = None) -> Optional[str]:
     if not OPENROUTER_API_KEY:
         raise Exception("OPENROUTER_API_KEY missing")
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        for model in FAST_FREE_MODELS:
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        for model in BEST_FREE_MODELS:
             try:
                 print(f"[AI] Trying model: {model}")
                 payload = {
                     "model": model,
                     "messages": messages,
-                    "temperature": 0.3,
-                    "max_tokens": 200,
+                    "temperature": 0.5, # Slightly higher for better dialect handling
+                    "max_tokens": 300,
                 }
                 if response_format:
-                    payload["response_format"] = response_format
+                    payload["response_format"] = {"type": response_format}
 
                 res = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
                         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://antigravity.delivery", # Required by some models
+                        "X-Title": "Antigravity Delivery Bot"
                     },
                     json=payload,
                 )
@@ -58,24 +134,28 @@ async def call_openrouter(messages: List[dict], response_format: Optional[dict] 
                     data = res.json()
                     content = data.get("choices", [{}])[0].get("message", {}).get("content")
                     if content:
-                        print(f"[AI] ✅ Got response from {model} ({len(content)} chars)")
+                        print(f"[AI] ✅ Got response from {model}")
                         return content
 
-                print(f"[AI] ⚠️ Model {model} returned {res.status_code}")
-            except httpx.TimeoutException:
-                print(f"[AI] ⏰ Model {model} timed out")
+                print(f"[AI] ⚠️ Model {model} returned {res.status_code}: {res.text[:100]}")
             except Exception as e:
                 print(f"[AI] ❌ Model {model} error: {e}")
 
     return None
 
 async def parse_user_message(user_text: str) -> ParsedDelivery:
-    system_prompt = """Extract delivery info as JSON: {"language_detected":"darija","normalized_text":"...","weight_kg":null,"fragile":null,"city_from":null,"city_to":null,"pickup_address":null,"delivery_address":null,"preferred_date":null,"intent":"unknown"}"""
+    system_prompt = """You are a Moroccan Delivery Data Extractor. 
+The user speaks Moroccan Darija (using Arabic script or Arabizi like 'bghit', 'wa7ed'), French, or Arabic.
+Extract the delivery details into JSON.
+JSON Keys: language_detected, normalized_text (Fusha Arabic), weight_kg, fragile (bool), city_from, city_to, pickup_address, delivery_address, preferred_date, intent.
+Values should be null if not found.
+Intent can be: delivery_request, status_inquiry, general_greeting, unknown."""
+    
     try:
-        content = await call_openrouter([
+        content = await call_ai([
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text}
-        ], response_format={"type": "json_object"})
+        ], response_format="json_object")
 
         if content:
             return ParsedDelivery.model_validate_json(content)
@@ -85,13 +165,19 @@ async def parse_user_message(user_text: str) -> ParsedDelivery:
     return ParsedDelivery(normalized_text=user_text)
 
 async def generate_response(user_text: str, context: str, system_action: str, language: str = "darija") -> str:
-    system_prompt = f"""You are a Moroccan Delivery Assistant. Be friendly, use emojis 🇲🇦. Reply in {language}.
-Context: {context}
-Action: {system_action}
-Keep it SHORT (2-3 sentences max)."""
+    system_prompt = f"""You are 'Antigravity Delivery Bot', a helpful and professional Moroccan delivery assistant 📦🇲🇦.
+You understand Moroccan Darija perfectly (including Arabizi/numbers like 'wa7ed', 'khmsa').
+Tone: Friendly, efficient, Moroccan-centric. Use emojis.
+Rules:
+1. Reply ONLY in {language} (Moroccan Darija).
+2. If the user mentions a city, acknowledge it.
+3. Keep the reply short (1-3 sentences max).
+4. Context of the current order: {context}
+5. Your next task: {system_action}
+"""
 
     try:
-        content = await call_openrouter([
+        content = await call_ai([
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text}
         ])
