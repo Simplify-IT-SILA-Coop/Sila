@@ -1,0 +1,73 @@
+# Ignore local env files
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
+.env.production
+.env.*
+.env.tmp
+.env.example
+
+# Ignore node modules
+node_modules/
+
+# Ignore build artifacts
+dist
+build
+
+# Ignore cache
+.cache
+
+# Ignore editor files
+.vscode
+.idea
+*.sublime-project
+*.sublime-workspace
+
+# Ignore logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore sensitive data
+.DS_Store
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore package-lock.json
+package-lock.json
+
+# Ignore yarn.lock
+yarn.lock
+
+# Ignore .next
+.next
+
+# Ignore npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore logs
+logs
+*.log
+tmp/
+.expo
+.expo/
+__tests__
+__tests__/
+__mocks__
+__mocks__/
+__snapshots__
+__snapshots__/
+__pycache__
+__pycache__/
